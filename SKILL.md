@@ -2,9 +2,8 @@
 name: yab
 description: >
   在 YAB（原 BAAS，蔚蓝档案自动化脚本，仓库名 blue_archive_auto_script）项目中
-  开发、排查、审查、识别回归、打包或修改安装器时使用，涵盖设备、调度、配置、商店与活动提示、
-  网页、通知、轻量发行、关窗轻量模式、启动反馈及 Electron（桌面壳）与 NSIS（安装器）发行。不用于其他桌面项目、Alasio 或
-  StarRailCopilot 本身的开发，也不用于游戏玩法咨询。
+  开发、排查、审查、识别回归、打包、修改安装器，或维护本项目技能时使用，涵盖设备、调度、配置、商店与活动提示、
+  网页、通知、容器部署、轻量发行、关窗轻量模式、启动反馈及 Electron（桌面壳）与 NSIS（安装器）发行。
 ---
 
 # YAB（原 BAAS，blue_archive_auto_script）
@@ -13,11 +12,20 @@ description: >
 Python 后端 `server/`（starlette/uvicorn）+ Svelte 5 前端 `webapp/`（pnpm + Vite 8）。
 主开发分支 `dev`，仅本地提交（禁止 push，除非用户明确要求）。
 
+## 技能维护与同步
+
+- 本技能后续修改优先在独立目录完成；本机维护源是 `D:/Files/Skills/YAB-Skill`（独立技能仓库），其他机器使用用户指定的独立目录。`.cc-switch/skills/yab`（技能管理器副本）、`.agents/skills/yab`（通用代理副本）及其他代理目录是分发位置，不作为日常修改入口。
+- 修改前比较文件清单和内容；分发端存在独有的有效更新时，先合并回独立源，不按目录名称或修改时间直接覆盖。
+- 先在 [核对用例](references/skill-evals.md) 中选择或补充对应主题的题目与预期行为，再改独立源的正文与参考，按 skill-authoring（技能编写规范）检查触发范围、路由、引用和格式。重复用例合并，失效规则按当前依据修正，不按日期追加维护日志；日期、提交号、通过数量和实际结果保留在任务或项目维护记录中。
+- 在独立源运行 `python -B scripts/sync_skill.py`（只检查差异）；确认有效更新已合并且校验通过后，运行 `python -B scripts/sync_skill.py --apply`（同步现有代理副本）。[同步脚本](scripts/sync_skill.py)默认处理本机已有的管理器、通用代理及单数代理目录，其他目标通过 `--target`（目标目录参数）显式传入。
+- 同步后再次检查文件清单与内容摘要；保留客户端符号链接和目标额外文件，不复制版本库元数据、不删除文件。目标有额外文件时报告差异，不声称全部一致。本机 `.codex/skills/yab`（客户端入口）链接到管理器副本，同步后核对读取内容即可。
+
 ## Always Read
 - 本说明包含仓库结构、常用入口和容易踩到的问题；只读当前任务对应的参考。
 - 改启动、配置、设备、通知或网页协议前，读 [架构参考](references/architecture.md)。
+- 改容器构建、启动、数据保存或容器设备连接前，读 [容器构建与部署](references/docker.md)。
 - 改桌面构建、运行准备、配置迁移或安装界面前，读 [桌面发行与安装器](references/desktop-packaging.md)。
-- 改活动提示识别或离线样本回归前，读 [识别与截图回归](references/offline-regression.md)。
+- 改活动提示识别、截图诊断或离线样本回归前，读 [识别与截图回归](references/offline-regression.md)。
 - 维护本技能时，用 [技能核对用例](references/skill-evals.md) 检查范围与行为；静态核对不等于自动触发实测。
 
 ## Repo Map
@@ -35,7 +43,7 @@ webapp/          # WebUI 前端: Svelte5+Vite, src/lib/ws.ts 协议客户端, sr
 desktop/         # Electron 桌面壳、完整与轻量发行：build.cjs/bundle.py/runtime.cjs；NSIS 安装与卸载脚本
 src/             # 图像模板/rgb_feature/maatouch_bin 等静态资源
 config/          # 运行时生成 (gitignored): <dir>/config.json|event.json|switch.json + static.json
-deploy/          # installer(MirrorChyan 启动器)/docker/standalone(webui.whole.spec)
+deploy/          # installer(旧源码启动器)/docker/standalone(webui.whole.spec)
 ```
 
 Alasio（框架参考）和 StarRailCopilot（设备方法参考）仅供只读参考，按用户提供的检出路径定位，不作为 YAB 的运行依赖。
@@ -52,12 +60,14 @@ Alasio（框架参考）和 StarRailCopilot（设备方法参考）仅供只读�
 | 任务 | 要点 |
 |---|---|
 | 源码启动 | 项目根目录运行 `uv sync --python 3.11`，再运行 `uv run python -m server --open`；默认本机端口 22267。无网页任务入口仍是 `main.py` |
+| 容器部署 | 读 [容器构建与部署](references/docker.md)；构建时预置网页、锁定依赖与识别资源，运行时保留数据卷和密码保护；没有容器引擎时明确尚未实跑 |
 | 前端开发 | 后端运行 `uv run python -m server --api-only --port 8000`；另一个终端进入 `webapp`，运行 `pnpm install --frozen-lockfile`、`pnpm dev`，网页代理到 8000 端口 |
 | 网页构建与打包 | `uv run python -m server.frontend --force` 强制重新构建；完整程序打包前必须已有 `webapp/dist/index.html` |
 | 网页监听设置 | 读 [架构参考](references/architecture.md) 与 [桌面网页访问](references/desktop-packaging.md#8-桌面网页访问)；源码与桌面默认共用本机 22267 端口，设置全局保存、重启生效，端口冲突明确报错 |
 | 弹窗宽度与网页图标 | 读 [弹窗与网页图标](references/architecture.md#弹窗与网页图标)；输入框撑满内容区并核对宽窄屏，标签与侧栏共用图标，静态目录也参与产物过期判断 |
 | 活动提示、公告与截图回归 | 读 [识别与截图回归](references/offline-regression.md)；区分两类弹窗，命中稳定特征后点击关闭位置，回放重复帧与点击未生效，不能用点击代替成功确认 |
 | 商店漏识别或购买循环 | 读 [商店识别与有限重试](references/architecture.md#8-商店识别与有限重试)；按固定列编号、补查缺列、限制重试，再用已有截图及模拟缺项回归核对 |
+| 更新页往返与配置选择 | 读 [全局页与配置选择](references/architecture.md#全局页与配置选择)；区分侧栏选择、动态订阅和文件内容，保留最近有效配置，用非第一份配置回归 |
 | 配置生效与热更新 | 读 [配置生效时机](references/architecture.md#配置生效时机)；分清文件、网页与任务副本。热更新暂缓，不能把每日刷新或调度重读当成全部配置热更新 |
 | 帮助文档配色 | 读 [前端开发](references/architecture.md#6-前端开发)；维护独立文档画布并运行隐藏浏览器渲染检查，不批量改源文档 |
 | 通知渠道与旧来源 | 读 [通知入口与来源](references/architecture.md#9-通知入口与来源)；远程推送和本机通知分开追查，测试拦截真实发送，保留安装身份并核对源码与包内版本 |
@@ -67,7 +77,8 @@ Alasio（框架参考）和 StarRailCopilot（设备方法参考）仅供只读�
 | 加结构化面板 | `server/panels.py` 的 PANELS 加面板/字段（options_from 解析器按 server_mode 解析选项）→ 前端 `webapp/src/lib/components/fields/FieldControl.svelte` 分发渲染；值经 ConfigArg topic/set RPC 读写，**类型必须与 config.json 现值一致**（用 coerce 标注转换） |
 | 加/改翻译 | 手工词条只改 `webapp/src/lib/i18n/overrides.ts`（三语言尽量同补，不确定的宁缺毋滥）；`locales/*.ts` 是从旧 Qt .ts 自动生成的**勿手改**，上游更新后跑 `python develop_tools/extract_i18n_from_ts.py` 重新生成。UI 中一律 `$t('中文原文')`，脚本代码用 `tNow()`，复合文案用 `'{0}'` 占位 + `.replace('{0}', () => v)` |
 | Electron 壳 | 开发运行 `cd desktop && pnpm start`；无头冒烟 `pnpm run smoke`（拉起后端→健康检查→杀进程树，exit 0 为过）；python/端口/根目录用环境变量 BAAS_PYTHON/BAAS_DESKTOP_PORT/BAAS_ROOT 覆盖 |
-| 加截图/控制方式 | `core/device/screenshot|control/<name>.py` 实现方法 → Screenshot.py/Control.py 分发 → default_config.py 的方法列表；静态配置每次启动重写，改模板才有效 |
+| 主页识别失败与截图对照 | 先确认两种截图是否为同一画面，再检查颜色、尺寸和接口错误；新版后台保活可能让专用截图抓到桌面，现有检查存在漏检。读 [识别与截图回归](references/offline-regression.md) |
+| 加截图/控制方式 | `core/device/screenshot/<name>.py` 或 `core/device/control/<name>.py` 实现方法 → Screenshot.py/Control.py 分发 → default_config.py 的方法列表；静态配置每次启动重写，改模板才有效 |
 | 加完成动作 | `core/Baas_thread.py: handle_then()` 按中文字符串精确匹配 `config.then`；下拉选项补 server/app.py THEN_OPTIONS |
 | 加游戏任务 | module/<task>.py 写 `implement(self)` → core/Baas_thread.py func_dict 注册 → default_config.py EVENT_DEFAULT_CONFIG 加事件 |
 | 改网页协议 | server/hub.py、server/app.py 与 webapp/src/lib/ws.ts 保持一致；修改配置或任务状态后推送相应主题，设备查询和连接通过调用回执返回结果 |
@@ -76,6 +87,7 @@ Alasio（框架参考）和 StarRailCopilot（设备方法参考）仅供只读�
 | 桌面预览与表单回归失败 | 读 [主题与原生控件](references/desktop-packaging.md#4-暗黑模式与高分屏) 和 [回归隔离](references/desktop-packaging.md#回归隔离与诊断)；统一主题来源、串行运行原生预览，表单回归独立构建最新网页 |
 | 构建目录与缓存整理 | 读 [目录归属](references/desktop-packaging.md#13-构建目录与缓存归属)；中间目录可重建，缓存和正式产物分开，遵守用户不删除文件的约定并核对测试跳过 |
 | 桌面发行与批量发包 | 读 [发行变体与工具](references/desktop-packaging.md#轻量发行与工具定位)；默认完整包，轻量包按锁定清单在线准备；三种发包复用共享配置，预览不代表构建成功 |
+| 桌面更新发布 | 读 [桌面更新与发布](references/desktop-packaging.md#桌面更新与发布)；同步四处版本元信息，构建三种安装包及清单，把安装包、分块清单和 `latest*.yml` 放进同一个 `v<版本>` Release（平台发行）；更新只在安装目录内写状态记录，不创建用户目录安装包或配置备份 |
 | 桌面版本、配置与升级 | 读 [版本与配置](references/desktop-packaging.md#2-版本配置与品牌兼容)；二开版本与固定上游基准分开，程序旁保存配置，运行环境在用户数据目录，升级保留原件 |
 | 启动进度、日志与过渡 | 读 [启动反馈](references/desktop-packaging.md#10-启动反馈)；按真实阶段和输出更新，主界面加载成功后完成并淡出，失败保留日志，检查减少动态效果和页面访问限制 |
 | 安装界面与卸载 | 读 [桌面发行与安装器](references/desktop-packaging.md)；浏览后在原输入框显示最终目录，无二次确认或下方预览；卸载默认勾选保留数据；改脚本后正式编译 |
@@ -85,6 +97,7 @@ Alasio（框架参考）和 StarRailCopilot（设备方法参考）仅供只读�
 | 其他 YAB 改动 | 按仓库结构定位；涉及启动和配置先读架构参考，涉及桌面发行先读桌面参考，不套用其他项目的安装方式 |
 
 ## Known Gotchas
+- **容器网页可访问不等于识别就绪**：核对平台程序名和带密码的健康接口；目前限用上游已提供的 Linux x86_64（常见电脑的 64 位架构）识别资源。见 [容器构建与部署](references/docker.md)。
 - **旧通知来源不由远程推送设置决定**：分别检查本机系统通知和远程渠道；旧包与历史消息不会随源码自动更新。见 [通知入口与来源](references/architecture.md#9-通知入口与来源)。
 - **原生预览与旧网页会使回归误判**：主窗口和插件共用主题来源，原生测试串行、按真实状态采样；表单测试独立构建当前网页。见 [回归隔离与诊断](references/desktop-packaging.md#回归隔离与诊断)。
 - **点击不等于弹窗已关闭**：活动提示检测左下角，公告保留独立特征；用后续画面确认结束，帧耗尽应失败。见 [识别与截图回归](references/offline-regression.md)。
@@ -93,6 +106,7 @@ Alasio（框架参考）和 StarRailCopilot（设备方法参考）仅供只读�
 - **漏掉一列不能让商品编号前移**：缺项先补识别，失败必须有限退出；截图能识别不代表复现了实际漏检。见 [商店识别与有限重试](references/architecture.md#8-商店识别与有限重试)。
 - **保存不等于运行参数已生效**：任务主要用初始化副本，网页靠服务推送；外部文件修改没有统一热更新。见 [配置生效时机](references/architecture.md#配置生效时机)。
 - **桌面发行不是旧冻结方式**：完整包内置独立解释器、离线依赖和识别资源；默认不恢复 PyInstaller（冻结打包工具）。见 [桌面发行流程](references/desktop-packaging.md#1-完整发行流程)。
+- **桌面自动更新只面向正式安装版**：源码目录和解压包不启用安装器更新；发布时三种变体共享一个 `v<版本>` Release（平台发行），分别上传安装包、`.exe.blockmap`（安装包分块清单）和 `latest*.yml`（更新清单）。更新准备只在安装目录内写少量状态记录，不能复制安装包或配置到用户数据目录。见 [桌面更新与发布](references/desktop-packaging.md#桌面更新与发布)。
 - **显示名与兼容标识分开**：技能名为 `yab`，对用户显示 YAB；保留安装标识和必要环境变量。默认数据只用新版目录，不自动复用或清理原 BAAS 数据；配置迁移保留原件。见 [版本与配置](references/desktop-packaging.md#2-版本配置与品牌兼容)。
 - **安装目录必须所见即所得**：浏览回调立即补目录并回填原输入框；安装阶段不能再追加。当前关闭默认目录页是有意使用自定义页。见 [安装目录约定](references/desktop-packaging.md#3-安装目录的最终约定)。
 - **安装器版本与素材**：暂沿用打包器定制版，不因官方有新版本直接替换；先检查真实字体和素材尺寸，再运行原生控件绘制回归与正式编译。见 [暗黑模式与高分屏](references/desktop-packaging.md#4-暗黑模式与高分屏)。
@@ -110,7 +124,8 @@ Alasio（框架参考）和 StarRailCopilot（设备方法参考）仅供只读�
 - **Logger 信号约定 `.emit(level, message)`**（level 1=INFO 2=WARNING 3=ERROR 4=CRITICAL，core/utils.py Logger.__out__）：传普通回调要包一层带 emit 的适配器（server/service.py `_Signal`）。
 - **OCR（文字识别）就绪状态**：后台初始化完成后以 `Main.ready` 为准；已有识别客户端对象不代表成功。失败写入 `init_error`，网页保留未就绪状态并显示错误，只有成功后才允许启动及自动运行配置。源码启动可准备识别服务；完整发行使用内置程序和模型，缺失时明确失败。`core/ocr/baas_ocr_client/bin` 是被忽略的嵌入仓库。
 - **MaaTouch**：单文件 dex（src/maatouch_bin/maatouch，跨 ABI）push 到 /data/local/tmp 后 `CLASSPATH=... app_process / com.shxyke.MaaTouch.App` 以 `d.shell(..., stream=True)` 拿 socket；握手两行 `^ <contacts> <max_x> <max_y> <pressure>` 与 `$ <pid>`；指令文本同 minitouch（d/m/u/c/r/w + \n）；`recv(0)` 不确认动作完成；发送、重连重发和按动作时长等待都在同一把锁内，长按和滑动须等完设备端等待，再加 50 毫秒余量。
-- **adb_nc 截图**：PC 端起 TCP server，设备端 `screencap | nc <host> <port>` 回连（不是 adb exec-out）；raw 格式 = 12 字节头（3×小端 uint32 w/h/format）+ BGRA，取尾部 w*h*4 字节 reshape；设备无 nc 时报错让用户换方式。
+- **adb_nc（网络回传截图）的像素格式**：安卓系统截图经网络回连，按头部格式1、2、5分别处理；1、2是红绿蓝及透明度或占位通道，5是蓝绿红及透明度，统一转为项目内部蓝绿红顺序。兼容12、16字节头，从尾部提取像素并校验长度，不能一律当成蓝绿红。替换修正文件后已有用户实机恢复反馈，不能据此认定专用截图也有同样错误。
+- **专用截图内容与新版保活**：普通截图是游戏、专用截图是桌面时，先查后台保活和显示编号，不改颜色或主页阈值。旧系统属性为空不等于关闭；本项目尚缺新版配置检查，关闭保活后的修复效果仍待用户复测。见 [识别与截图回归](references/offline-regression.md)。
 - **前端消息顺序不保证**：RPC 回执（有 `i` 字段）与 topic full 推送可能乱序，客户端按字段区分，不要假设顺序。
 - **i18n 契约**：中文原文是 key 也是存储值——**落盘/协议值永远是中文原文**（then/server/patStyle/event_name），翻译只发生在前端显示层（`$t()`）；select 渲染 `<option value={原文}>{$t(原文)}</option>`，绝不能把译文存回去。词典缺失自动回退中文。
 - **宿主环境可能泄漏 `ELECTRON_RUN_AS_NODE=1`**：会让 electron 退化成普通 Node（`require('electron')` 返回路径字符串、app undefined）。desktop/main.js 顶部有自愈守卫（检测到就用干净 env 重启自己），但直接 require electron 的脚本要小心。
@@ -124,4 +139,4 @@ Alasio（框架参考）和 StarRailCopilot（设备方法参考）仅供只读�
 - `config/`、`error.log`、`core/ocr/baas_ocr_client/bin/`、`webapp/node_modules|dist`、开发验证环境及工具缓存均已 gitignore，勿提交。
 
 ## WebUI 功能路线（持续完善）
-面板体系已就绪：前端路由 `#/<dir>/{home,schedule,config,settings,advanced}` + 全局 `#/update`；16 个结构化面板、主页资产条（Assets 2s 轮询）、更新设置（setup.toml/CDK 测试/SHA 测试）、帮助文档（四语言 HTML）、**多语言 i18n**（zh/en/ja/ko，侧栏语言切换器，词典+overrides 双层）与 **Electron 托盘壳及完整离线发行**（desktop/，含安装与卸载定制）均已实现；桌面发行的验证范围见对应参考。待补：全局热键（浏览器形态受限，可后续在 desktop 壳内做全局快捷键）、资产条推消息化（现为轮询）、桌面在线自动更新。
+面板体系已就绪：前端路由 `#/<dir>/{home,schedule,config,settings,advanced}` + 全局 `#/update`；16 个结构化面板、主页资产条（Assets 2s 轮询）、旧源码更新设置（setup.toml 配置与提交查询）、桌面安装版在线更新、帮助文档（四语言 HTML）、**多语言 i18n**（zh/en/ja/ko，侧栏语言切换器，词典+overrides 双层）与 **Electron 托盘壳及完整离线发行**（desktop/，含安装与卸载定制）均已实现；桌面发行的验证范围见对应参考。待补：全局热键（浏览器形态受限，可后续在 desktop 壳内做全局快捷键）、资产条推消息化（现为轮询）。

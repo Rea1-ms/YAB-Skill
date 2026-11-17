@@ -7,6 +7,7 @@
 | 修改内容 | 先读的项目文件 |
 |---|---|
 | 构建、离线资源、发行依赖 | `desktop/README.md`、`desktop/build.cjs`、`desktop/bundle.py`、`desktop/python-version`、`uv.lock` |
+| 桌面更新与发布 | `desktop/README.md`、`desktop/build.cjs`、`desktop/update-config.cjs`、`desktop/updater.cjs`、`desktop/main.js`、`desktop/test/updater.test.cjs` |
 | 环境准备、配置迁移、失败恢复 | `desktop/runtime.cjs`、`desktop/main.js`、`core/distribution.py`、`desktop/test/runtime.test.cjs` |
 | 网页监听与浏览器入口 | `server/webui_settings.py`、`desktop/webui.cjs`、`desktop/main.js`、`webapp/src/lib/components/WebServerSettings.svelte` |
 | 安装路径、页面、主题、卸载选择 | `desktop/electron-builder.cjs`、`desktop/installer.nsh`、`desktop/installer-ui.nsh`、`desktop/installer-pages.nsh`、`desktop/installer-i18n.nsh`、`desktop/installer-translations/`、`desktop/native/installer-ui.cpp`、`desktop/test/installer.test.cjs` |
@@ -45,6 +46,32 @@
 - 运行准备由 uv（依赖管理工具）执行；完整包构建保留 pip wheel（依赖打包命令）处理源码依赖。离线依赖缓存按导出的依赖内容和解释器版本计算，不能因只改项目版本而整批重新下载；优先复用已有共享缓存。
 - 修改在线准备后，先运行桌面回归，再用 test/online-smoke.cjs（显式联网验证）在独立数据目录实际准备并启动，检查识别就绪、再次启动及环境复用；它不在默认回归中，模拟命令不能代替下载验证。
 
+### 桌面更新与发布
+
+桌面自动更新只对正式 NSIS（安装器工具）安装版启用。源码目录和解压包不调用安装器更新；安装版通过 electron-updater（桌面更新库）的通用静态源，从 GitHub Releases（平台发行页）读取版本清单，再下载并校验对应变体的安装包。当前不调用平台接口、不使用个人令牌，也不接入镜像酱。码云仅作为后续可选发行分发方向，尚未接入，不能描述为已支持自动切换或回退。
+
+正式安装版每次主界面启动完成后、进入“更新与帮助”时自动检查，状态和简短错误紧跟检查按钮。30 秒只限制自动触发，手动检查可立即重试；检查、下载、待安装及安装时不重复检查。检查只获取版本信息，下载和安装仍由用户点击。
+
+每日定时检查为可选项，默认关闭、默认本机时间 08:00，用户可修改时分；不是每小时轮询，也不限制每天只能检查一次。开关与时间保存在安装目录内的 `config/desktop-update.json`（更新检查设置），安装结果仍写安装目录根部的 `desktop-update.json`（更新状态记录），不创建每日检查日期文件。参考固定版本 [MXU v2.10.0-beta.2（Maa 新界面版本）自动检查服务](https://github.com/MistEO/MXU/blob/v2.10.0-beta.2/src/services/autoUpdateCheck.ts)和[启动及定时安排](https://github.com/MistEO/MXU/blob/v2.10.0-beta.2/src/App.tsx)；后续核对实现时按此版本与当前源码区分。
+
+发布前同步 `pyproject.toml`（项目元信息）、`desktop/package.json`（桌面元信息）和 `webapp/package.json`（网页元信息），运行 `uv lock`（更新 Python 锁文件），然后在 Windows x64（64 位视窗系统）上检查并构建：
+
+```powershell
+uv sync --locked
+pnpm -C webapp install --frozen-lockfile
+pnpm -C desktop install --frozen-lockfile
+pnpm -C webapp run check
+pnpm -C desktop test
+$env:YAB_RELEASE_NOTES = '本次更新说明'
+pnpm -C desktop dist
+pnpm -C desktop dist:lite
+pnpm -C desktop dist:lite:system
+```
+
+三个变体使用同一个 `v<版本>`（版本标签）Release（平台发行），分别上传安装包、对应的 `.exe.blockmap`（安装包分块清单）和 `latest.yml`、`latest-lite.yml`、`latest-lite-system.yml`（更新清单）。压缩包可供手动使用，不参与安装版自动更新。发布后必须用已安装的旧版本实际完成检查、下载、重启和覆盖安装。
+
+更新准备只在安装目录内、与 `YAB.exe`（主程序）同级的位置写入 `desktop-update.json`（更新状态记录），保存目标版本和完成状态；不会把安装包或配置复制到用户数据目录。`electron-updater`（桌面更新库）的下载临时缓存由更新库自行管理。
+
 
 ## 2. 版本、配置与品牌兼容
 
@@ -57,7 +84,7 @@
 
 - `profiles` 保存各任务配置，`ocr` 保存识别设置，`webui.json` 保存全局网页监听设置；`YAB_CONFIG_DIR` 可覆盖配置根目录。
 - 轻量包的 config/runtime-settings.json（运行设置）保存工具来源和依赖镜像，从托盘修改后下次启动使用。虚拟环境位于用户运行数据下的 runtimes/<依赖标识>/.venv（专用环境），不在安装目录。
-- 运行环境、日志、浏览器状态和备份默认放在当前用户应用数据下的 `yab-desktop`（新版运行数据目录）；不自动使用原 BAAS 数据目录。`BAAS_DESKTOP_DATA`（运行数据位置环境变量）可显式覆盖位置。
+- 运行环境、日志和浏览器状态默认放在当前用户应用数据下的 `yab-desktop`（新版运行数据目录）；更新流程不在此目录保存安装包或配置备份。不自动使用原 BAAS 数据目录。`BAAS_DESKTOP_DATA`（运行数据位置环境变量）可显式覆盖位置。
 - 源码启动继续沿用源码目录布局。程序旁目录不可写时明确提示；不要静默切换配置位置导致用户误以为数据丢失。
 
 修改迁移与运行准备时，保留以下次序和约束：
@@ -159,7 +186,7 @@
 4. 完整发行在隔离数据目录验证首次离线启动、再次启动、识别就绪、配置复制与原件保留、修改持久化和环境复用；损坏清单、临时占用及失败恢复用已有回归验证。
 5. 仅改安装器且应用内容未变时，可复用已经验证的应用目录，但仍要重新生成扩展脚本、实际编译正式安装器并生成新文件校验值。说明应用验证复用，不将旧的离线报告写成刚执行的新验证。
 6. 原生插件变化后完整生成安装包和压缩包，核对安装脚本、译文、包内插件、素材及许可与源码输入一致，再逐项比较共同应用文件的摘要。当前打包器会只给安装包增加 `resources/elevate.exe`（提权辅助程序），需按本次模板核实并单独记录；其他差异必须追查，不能忽略所有差异。避免只重打安装器而继续分发含旧插件的压缩包。
-7. 交付只列实际产物、验证结果和未验证边界；当前通过完整包或轻量包覆盖更新，依赖变化新建环境，尚未接入在线自动更新服务，网页的旧启动器设置不代表桌面更新已经实现。
+7. 交付只列实际产物、验证结果和未验证边界；桌面更新使用正式安装包的静态清单和安装器覆盖更新，依赖变化新建环境，网页的旧启动器设置不代表桌面更新配置。
 
 简短汇报示例：已补齐安装卸载弹窗主题；实际线程回归与正式构建通过；应用启动沿用此前验证，系统选择窗口只记录本机实测范围。
 
